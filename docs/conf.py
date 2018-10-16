@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # complexity documentation build configuration file, created by
 # sphinx-quickstart on Tue Jul  9 22:26:36 2013.
 #
@@ -8,14 +10,15 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
+
+import inspect
 import os
 import sys
 
 import django
 from django.conf import settings
-
-import djstripe  # noqa
-
+from django.utils.encoding import force_text
+from django.utils.html import strip_tags
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -25,6 +28,7 @@ cwd = os.getcwd()
 parent = os.path.dirname(cwd)
 sys.path.append(parent)
 
+import djstripe  # noqa
 
 settings.configure(
     INSTALLED_APPS=[
@@ -51,11 +55,7 @@ django.setup()
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = [
-    'sphinx.ext.autodoc',
-    'sphinxcontrib_django',
-    'sphinx.ext.viewcode'
-]
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -285,3 +285,56 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 # texinfo_no_detailmenu = False
+
+
+def process_docstring(app, what, name, obj, options, lines):
+    """
+    Auto list fields from django models.
+    https://djangosnippets.org/snippets/2533/#c5977
+    """
+
+    # This causes import errors if left outside the function
+    from django.db import models
+
+    # Only look at objects that inherit from Django's base model class
+    if inspect.isclass(obj) and issubclass(obj, models.Model):
+        # Grab the field list from the meta class
+        fields = obj._meta.get_fields()
+
+        for field in [_field for _field in fields if _field.name not in ["id", "created", "modified",
+                                                                         "polymorphic_ctype"]]:
+            # Skip ManyToOneRel and ManyToManyRel fields which have no 'verbose_name' or 'help_text'
+            if not hasattr(field, 'verbose_name') or (hasattr(field, 'deprecated') and field.deprecated):
+                continue
+
+            # Decode and strip any html out of the field's help text
+            help_text = strip_tags(force_text(field.help_text))
+
+            # Decode and capitalize the verbose name, for use if there isn't
+            # any help text
+            verbose_name = force_text(field.verbose_name).capitalize()
+
+            if help_text:
+                # Add the model field to the end of the docstring as a param
+                # using the help text as the description
+                lines.append(u':param %s: %s' % (field.name, help_text))
+            else:
+                # Add the model field to the end of the docstring as a param
+                # using the verbose name as the description
+                lines.append(u':param %s: %s' % (field.name, verbose_name))
+
+            # Add the field's type to the docstring
+            if isinstance(field, models.ForeignKey):
+                to = field.rel.to
+                lines.append(u':type %s: %s to :class:`~%s.%s`' % (field.name, type(field).__name__,
+                                                                   to.__module__, to.__name__))
+            else:
+                lines.append(u':type %s: %s' % (field.name, type(field).__name__))
+
+    # Return the extended docstring
+    return lines
+
+
+def setup(app):
+    # Register the docstring processor with sphinx
+    app.connect('autodoc-process-docstring', process_docstring)

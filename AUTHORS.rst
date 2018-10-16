@@ -6,8 +6,6 @@ Development Lead
 
 * Alexander Kavanaugh (@kavdev)
 * Daniel Greenfeld <pydanny@gmail.com>
-* Jerome Leclanche (@jleclanche)
-* Lee Skillen (@lskillen)
 
 Contributors
 ------------
@@ -49,8 +47,9 @@ Contributors
 * Yuri Prezument (@yprez)
 * Raphael Deem (@r0fls)
 * Irfan Ahmad (@erfaan)
+* Lee Skillen (@lskillen)
 * Slava Kyrachevsky (@scream4ik)
 * Alec Brunelle (@aleccool213)
 * James Hiew (@jameshiew)
 * Dan Koch (@dmkoch)
-* Denis Orehovsky (@apirobot)
+* Jerome Leclanche (@jleclanche)

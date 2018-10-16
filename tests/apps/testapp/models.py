@@ -1,5 +1,5 @@
 from django.db.models.base import Model
-from django.db.models.fields import CharField, EmailField
+from django.db.models.fields import EmailField, CharField
 
 
 class Organization(Model):

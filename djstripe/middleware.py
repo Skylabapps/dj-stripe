@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.middleware.
 
@@ -7,16 +8,14 @@
 
 .. moduleauthor:: @kavdev, @pydanny, @wahuneke
 """
+from django.conf import settings
+from django.core.urlresolvers import resolve
+from django.shortcuts import redirect
+
 import fnmatch
 
-from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
-from django.shortcuts import redirect
-from django.urls import resolve
-from django.utils.deprecation import MiddlewareMixin
-
-from .settings import SUBSCRIPTION_REDIRECT, subscriber_request_callback
 from .utils import subscriber_has_active_subscription
+from .settings import subscriber_request_callback, SUBSCRIPTION_REDIRECT
 
 
 DJSTRIPE_SUBSCRIPTION_REQUIRED_EXCEPTION_URLS = getattr(
@@ -31,7 +30,7 @@ EXEMPT = list(DJSTRIPE_SUBSCRIPTION_REQUIRED_EXCEPTION_URLS)
 EXEMPT.append("[djstripe]")
 
 
-class SubscriptionPaymentMiddleware(MiddlewareMixin):
+class SubscriptionPaymentMiddleware(object):
     """
     Used to redirect users from subcription-locked request destinations.
 
@@ -73,7 +72,7 @@ class SubscriptionPaymentMiddleware(MiddlewareMixin):
             return True
 
         # Second we check against matches
-        match = resolve(request.path, getattr(request, "urlconf", settings.ROOT_URLCONF))
+        match = resolve(request.path, request.urlconf)
         if "({0})".format(match.app_name) in EXEMPT:
             return True
 
@@ -99,6 +98,4 @@ class SubscriptionPaymentMiddleware(MiddlewareMixin):
         subscriber = subscriber_request_callback(request)
 
         if not subscriber_has_active_subscription(subscriber):
-            if not SUBSCRIPTION_REDIRECT:
-                raise ImproperlyConfigured("DJSTRIPE_SUBSCRIPTION_REDIRECT is not set.")
             return redirect(SUBSCRIPTION_REDIRECT)

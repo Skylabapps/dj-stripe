@@ -6,10 +6,12 @@
 .. moduleauthor:: Alex Kavanaugh (@akavanau)
 
 """
-import stripe
+
 from django.test import TestCase
 
 from djstripe.context_managers import stripe_temporary_api_version
+
+import stripe
 
 
 class TestTemporaryVersion(TestCase):

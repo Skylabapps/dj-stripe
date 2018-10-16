@@ -6,12 +6,11 @@
 .. moduleauthor:: Alex Kavanaugh (@kavdev)
 
 """
+
 import time
 from copy import deepcopy
 from datetime import datetime
-from decimal import Decimal
 from unittest import skipIf
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
@@ -19,15 +18,12 @@ from django.core.exceptions import ImproperlyConfigured
 from django.test import TestCase
 from django.test.utils import override_settings
 from django.utils import timezone
+from mock import patch
 
-from djstripe.models import Subscription
-from djstripe.utils import (
-    convert_tstamp, get_friendly_currency_amount,
-    get_supported_currency_choices, subscriber_has_active_subscription
-)
-
-from . import FAKE_CUSTOMER, FAKE_SUBSCRIPTION
-from .apps.testapp.models import Organization
+from djstripe.models import Customer, Subscription
+from djstripe.utils import subscriber_has_active_subscription, get_supported_currency_choices, convert_tstamp
+from tests import FAKE_SUBSCRIPTION, FAKE_CUSTOMER
+from tests.apps.testapp.models import Organization
 
 
 TZ_IS_UTC = time.tzname == ("UTC", "UTC")
@@ -35,25 +31,44 @@ TZ_IS_UTC = time.tzname == ("UTC", "UTC")
 
 class TestTimestampConversion(TestCase):
 
-    def test_conversion(self):
+    def test_conversion_without_field_name(self):
         stamp = convert_tstamp(1365567407)
-        self.assertEqual(stamp, datetime(2013, 4, 10, 4, 16, 47, tzinfo=timezone.utc))
+        self.assertEquals(stamp, datetime(2013, 4, 10, 4, 16, 47, tzinfo=timezone.utc))
+
+    def test_conversion_with_field_name(self):
+        stamp = convert_tstamp({"my_date": 1365567407}, "my_date")
+        self.assertEquals(stamp, datetime(2013, 4, 10, 4, 16, 47, tzinfo=timezone.utc))
+
+    def test_conversion_with_invalid_field_name(self):
+        stamp = convert_tstamp({"my_date": 1365567407}, "foo")
+        self.assertEquals(stamp, None)
 
     # NOTE: These next two tests will fail if your system clock is not in UTC
     # Travis CI is, and coverage is good, so...
 
     @skipIf(not TZ_IS_UTC, "Skipped because timezone is not UTC.")
     @override_settings(USE_TZ=False)
-    def test_conversion_no_tz(self):
+    def test_conversion_without_field_name_no_tz(self):
         stamp = convert_tstamp(1365567407)
-        self.assertEqual(stamp, datetime(2013, 4, 10, 4, 16, 47))
+        self.assertEquals(stamp, datetime(2013, 4, 10, 4, 16, 47))
+
+    @skipIf(not TZ_IS_UTC, "Skipped because timezone is not UTC.")
+    @override_settings(USE_TZ=False)
+    def test_conversion_with_field_name_no_tz(self):
+        stamp = convert_tstamp({"my_date": 1365567407}, "my_date")
+        self.assertEquals(stamp, datetime(2013, 4, 10, 4, 16, 47))
+
+    @override_settings(USE_TZ=False)
+    def test_conversion_with_invalid_field_name_no_tz(self):
+        stamp = convert_tstamp({"my_date": 1365567407}, "foo")
+        self.assertEquals(stamp, None)
 
 
 class TestUserHasActiveSubscription(TestCase):
 
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="pydanny", email="pydanny@gmail.com")
-        self.customer = FAKE_CUSTOMER.create_for_user(self.user)
+        self.customer = Customer.objects.create(subscriber=self.user, stripe_id=FAKE_CUSTOMER["id"], livemode=False)
 
     def test_user_has_inactive_subscription(self):
         self.assertFalse(subscriber_has_active_subscription(self.user))
@@ -113,12 +128,3 @@ class TestGetSupportedCurrencyChoices(TestCase):
         self.assertGreaterEqual(len(currency_choices), 1, "Currency choices pull returned an empty list.")
         self.assertEqual(tuple, type(currency_choices[0]), "Currency choices are not tuples.")
         self.assertIn(("usd", "USD"), currency_choices, "USD not in currency choices.")
-
-
-class TestUtils(TestCase):
-    def test_get_friendly_currency_amount(self):
-        self.assertEqual(get_friendly_currency_amount(Decimal("1.001"), "usd"), "$1.00 USD")
-        self.assertEqual(get_friendly_currency_amount(Decimal("10"), "usd"), "$10.00 USD")
-        self.assertEqual(get_friendly_currency_amount(Decimal("10.50"), "usd"), "$10.50 USD")
-        self.assertEqual(get_friendly_currency_amount(Decimal("10.51"), "cad"), "$10.51 CAD")
-        self.assertEqual(get_friendly_currency_amount(Decimal("9.99"), "eur"), "€9.99 EUR")

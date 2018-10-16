@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.context_managers.
 
@@ -8,6 +9,7 @@
 .. moduleauthor:: Lee Skillen (@lskillen)
 
 """
+
 from contextlib import contextmanager
 
 from . import settings as djstripe_settings

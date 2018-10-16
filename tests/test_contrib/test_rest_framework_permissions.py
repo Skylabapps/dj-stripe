@@ -2,8 +2,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.test.client import RequestFactory
 
-from .. import FAKE_CUSTOMER
-
+from djstripe.models import Customer
+from tests import FAKE_CUSTOMER
 
 try:
     import rest_framework
@@ -17,7 +17,11 @@ if rest_framework:
 
         def setUp(self):
             self.user = get_user_model().objects.create_user(username="pydanny", email="pydanny@gmail.com")
-            self.customer = FAKE_CUSTOMER.create_for_user(self.user)
+            self.customer = Customer.objects.create(
+                subscriber=self.user,
+                stripe_id=FAKE_CUSTOMER["id"],
+                livemode=False
+            )
 
         def test_no_user_in_request(self):
             request = RequestFactory().get('djstripe/')

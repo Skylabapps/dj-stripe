@@ -13,7 +13,7 @@ Types of Contributions
 Report Bugs
 ~~~~~~~~~~~
 
-Report bugs at https://github.com/dj-stripe/dj-stripe/issues.
+Report bugs at https://github.com/kavdev/dj-stripe/issues.
 
 If you are reporting a bug, please include:
 
@@ -39,14 +39,15 @@ dj-stripe could always use more documentation, whether as part of the
 official dj-stripe docs, in docstrings, or even on the web in blog posts,
 articles, and such.
 
-If you are adding to dj-stripe's documentation, you can see your changes by
-running ``tox -e docs``. The documentation will be generated in the ``docs/``
-directory, and you can open ``docs/_build/html/index.html`` in a web browser.
+If you are adding to dj-stripe's documentation, you can see your changes by changing
+into the ``docs`` directory, running ``make html`` (or ``make.bat html`` if you're
+developing on Windows) from the command line, and then opening ``docs/_build/html/index.html``
+in a web browser.
 
 Submit Feedback
 ~~~~~~~~~~~~~~~
 
-The best way to send feedback is to file an issue at https://github.com/dj-stripe/dj-stripe/issues.
+The best way to send feedback is to file an issue at https://github.com/kavdev/dj-stripe/issues.
 
 If you are proposing a feature:
 
@@ -86,22 +87,16 @@ Ready to contribute? Here's how to set up `dj-stripe` for local development.
    Note that if your system time is not in UTC, some tests will fail. If you want to ignore
    those tests, the --skip-utc command line option is available on runtests.py.::
 
-    $ pip install tox
+    $ pip install -r tests/requirements.txt
     $ tox
 
-7. If your changes altered the models you may need to generate Django migrations::
-
-    $ python makemigrations.py
-
-8. Commit your changes and push your branch to GitHub::
+7. Commit your changes and push your branch to GitHub::
 
     $ git add .
     $ git commit -m "Your detailed description of your changes."
     $ git push origin name-of-your-bugfix-or-feature
 
-9. Submit a pull request through the GitHub website.
-
-10. Congratulations, you're now a dj-stripe contributor!  Have some <3 from us.
+8. Submit a pull request through the GitHub website.
 
 Pull Request Guidelines
 -----------------------
@@ -112,7 +107,7 @@ Before you submit a pull request, check that it meets these guidelines:
 2. The pull request must not drop code coverage below the current level.
 3. If the pull request adds functionality, the docs should be updated. Put
    your new functionality into a function with a docstring.
-4. If the pull request makes changes to a model, include Django migrations.
-5. The pull request should work for Python 3.4, 3.5 and 3.6. Check
-   https://travis-ci.org/dj-stripe/dj-stripe/pull_requests
+4. If the pull request makes changes to a model, include Django migrations (Django 1.7+).
+5. The pull request should work for Python 2.7 and 3.4. Check
+   https://travis-ci.org/kavdev/dj-stripe/pull_requests
    and make sure that the tests pass for all supported Python versions.

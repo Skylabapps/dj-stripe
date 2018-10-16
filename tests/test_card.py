@@ -5,31 +5,30 @@
 .. moduleauthor:: Alex Kavanaugh (@kavdev)
 
 """
+
 from copy import deepcopy
-from unittest.mock import ANY, patch
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
+from mock.mock import patch
 from stripe.error import InvalidRequestError
 
 from djstripe.exceptions import StripeObjectManipulationException
-from djstripe.models import Card
-
-from . import FAKE_CARD, FAKE_CARD_III, FAKE_CARD_V, FAKE_CUSTOMER, default_account
+from djstripe.models import Account, Card, Customer
+from tests import FAKE_CARD, FAKE_CARD_III, FAKE_CARD_V, FAKE_CUSTOMER
 
 
 class CardTest(TestCase):
 
     def setUp(self):
-        self.account = default_account()
+        self.account = Account.objects.create()
         self.user = get_user_model().objects.create_user(username="testuser", email="djstripe@example.com")
-        self.customer = FAKE_CUSTOMER.create_for_user(self.user)
-        self.customer.sources.all().delete()
-        self.customer.legacy_cards.all().delete()
+        self.customer = Customer.objects.create(subscriber=self.user, stripe_id=FAKE_CUSTOMER["id"], livemode=False)
 
     def test_attach_objects_hook_without_customer(self):
-        card = Card.sync_from_stripe_data(deepcopy(FAKE_CARD_III))
-        self.assertEqual(card.customer, None)
+        with self.assertRaisesMessage(ValidationError, "A customer was not attached to this card."):
+            Card.sync_from_stripe_data(deepcopy(FAKE_CARD_III))
 
     def test_create_card_finds_customer(self):
         card = Card.sync_from_stripe_data(deepcopy(FAKE_CARD))
@@ -42,12 +41,12 @@ class CardTest(TestCase):
         card = Card.sync_from_stripe_data(fake_card)
 
         self.assertEqual(
-            "<brand={brand}, last4={last4}, exp_month={exp_month}, exp_year={exp_year}, id={id}>".format(
+            "<brand={brand}, last4={last4}, exp_month={exp_month}, exp_year={exp_year}, stripe_id={stripe_id}>".format(
                 brand=fake_card["brand"],
                 last4=fake_card["last4"],
                 exp_month=fake_card["exp_month"],
                 exp_year=fake_card["exp_year"],
-                id=fake_card["id"]
+                stripe_id=fake_card["id"]
             ),
             str(card)
         )
@@ -57,7 +56,7 @@ class CardTest(TestCase):
         card = {"number": "4242", "exp_month": 5, "exp_year": 2012, "cvc": 445}
         Card.create_token(**card)
 
-        token_create_mock.assert_called_with(api_key=ANY, card=card)
+        token_create_mock.assert_called_with(card=card)
 
     def test_api_call_no_customer(self):
         exception_message = "Cards must be manipulated through a Customer. Pass a Customer object into this call."
@@ -90,12 +89,12 @@ class CardTest(TestCase):
         stripe_card = Card._api_create(customer=self.customer, source=FAKE_CARD["id"])
         Card.sync_from_stripe_data(stripe_card)
 
-        self.assertEqual(1, self.customer.legacy_cards.count())
+        self.assertEqual(1, self.customer.sources.count())
 
-        card = self.customer.legacy_cards.all()[0]
+        card = self.customer.sources.all()[0]
         card.remove()
 
-        self.assertEqual(0, self.customer.legacy_cards.count())
+        self.assertEqual(0, self.customer.sources.count())
         self.assertTrue(card_delete_mock.called)
 
     @patch("stripe.Customer.retrieve", return_value=deepcopy(FAKE_CUSTOMER))
@@ -103,12 +102,12 @@ class CardTest(TestCase):
         stripe_card = Card._api_create(customer=self.customer, source=FAKE_CARD["id"])
         Card.sync_from_stripe_data(stripe_card)
 
-        self.assertEqual(self.customer.legacy_cards.count(), 1)
-        card_object = self.customer.legacy_cards.first()
-        Card.objects.filter(id=stripe_card["id"]).delete()
-        self.assertEqual(self.customer.legacy_cards.count(), 0)
+        self.assertEqual(self.customer.sources.count(), 1)
+        card_object = self.customer.sources.first()
+        Card.objects.filter(stripe_id=stripe_card["id"]).delete()
+        self.assertEqual(self.customer.sources.count(), 0)
         card_object.remove()
-        self.assertEqual(self.customer.legacy_cards.count(), 0)
+        self.assertEqual(self.customer.sources.count(), 0)
 
     @patch("djstripe.models.Card._api_delete")
     @patch("stripe.Customer.retrieve", return_value=deepcopy(FAKE_CUSTOMER))
@@ -118,12 +117,12 @@ class CardTest(TestCase):
 
         card_delete_mock.side_effect = InvalidRequestError("No such source:", "blah")
 
-        self.assertEqual(1, self.customer.legacy_cards.count())
+        self.assertEqual(1, self.customer.sources.count())
 
-        card = self.customer.legacy_cards.all()[0]
+        card = self.customer.sources.all()[0]
         card.remove()
 
-        self.assertEqual(0, self.customer.legacy_cards.count())
+        self.assertEqual(0, self.customer.sources.count())
         self.assertTrue(card_delete_mock.called)
 
     @patch("djstripe.models.Card._api_delete")
@@ -134,12 +133,12 @@ class CardTest(TestCase):
 
         card_delete_mock.side_effect = InvalidRequestError("No such customer:", "blah")
 
-        self.assertEqual(1, self.customer.legacy_cards.count())
+        self.assertEqual(1, self.customer.sources.count())
 
-        card = self.customer.legacy_cards.all()[0]
+        card = self.customer.sources.all()[0]
         card.remove()
 
-        self.assertEqual(0, self.customer.legacy_cards.count())
+        self.assertEqual(0, self.customer.sources.count())
         self.assertTrue(card_delete_mock.called)
 
     @patch("djstripe.models.Card._api_delete")
@@ -150,9 +149,9 @@ class CardTest(TestCase):
 
         card_delete_mock.side_effect = InvalidRequestError("Unexpected Exception", "blah")
 
-        self.assertEqual(1, self.customer.legacy_cards.count())
+        self.assertEqual(1, self.customer.sources.count())
 
-        card = self.customer.legacy_cards.all()[0]
+        card = self.customer.sources.all()[0]
 
         with self.assertRaisesMessage(InvalidRequestError, "Unexpected Exception"):
             card.remove()

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.decorators.
 
@@ -6,9 +7,10 @@
 .. moduleauthor:: @pydanny, and @audreyr
 
 """
+from __future__ import unicode_literals
+
 from functools import wraps
 
-from django.core.exceptions import ImproperlyConfigured
 from django.shortcuts import redirect
 from django.utils.decorators import available_attrs
 
@@ -28,9 +30,6 @@ def subscriber_passes_pay_test(test_func, plan=None, pay_page=SUBSCRIPTION_REDIR
         def _wrapped_view(request, *args, **kwargs):
             if test_func(subscriber_request_callback(request), plan):
                 return view_func(request, *args, **kwargs)
-
-            if not pay_page:
-                raise ImproperlyConfigured("DJSTRIPE_SUBSCRIPTION_REDIRECT is not set.")
 
             return redirect(pay_page)
         return _wrapped_view

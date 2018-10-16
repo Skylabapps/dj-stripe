@@ -1,38 +1,59 @@
-=========
+=============================
 dj-stripe
-=========
+=============================
+Django + Stripe Made Easy
 
-.. image:: https://travis-ci.org/dj-stripe/dj-stripe.png
-   :alt: Build Status
-   :target: https://travis-ci.org/dj-stripe/dj-stripe
+Badges
+------
 
-Stripe Models for Django.
+.. image:: https://img.shields.io/travis/kavdev/dj-stripe/1.0.0.svg?style=flat-square
+        :target: https://travis-ci.org/kavdev/dj-stripe
+.. image:: https://img.shields.io/codecov/c/github/kavdev/dj-stripe/1.0.0.svg?style=flat-square
+        :target: http://codecov.io/github/kavdev/dj-stripe?branch=1.0.0
+.. image:: https://img.shields.io/requires/github/kavdev/dj-stripe.svg?style=flat-square
+        :target: https://requires.io/github/kavdev/dj-stripe/requirements/?branch=1.0.0
+.. image:: https://img.shields.io/codacy/3c99e13eda1c4dea9f993b362e4ea816.svg?style=flat-square
+        :target: https://www.codacy.com/app/kavanaugh-development/dj-stripe/dashboard
+
+.. image:: https://img.shields.io/pypi/v/dj-stripe.svg?style=flat-square
+        :target: https://pypi.python.org/pypi/dj-stripe
+.. image:: https://img.shields.io/pypi/dw/dj-stripe.svg?style=flat-square
+        :target: https://pypi.python.org/pypi/dj-stripe
+
+.. image:: https://img.shields.io/github/issues/kavdev/dj-stripe.svg?style=flat-square
+        :target: https://github.com/kavdev/dj-stripe/issues
+.. image:: https://img.shields.io/github/license/kavdev/dj-stripe.svg?style=flat-square
+        :target: https://github.com/kavdev/dj-stripe/blob/master/LICENSE
 
 
-Introduction
-------------
+Documentation
+-------------
 
-dj-stripe implements all of the Stripe models, for Django.
-Set up your webhook and start receiving model updates.
-You will then have a copy of all the Stripe models available in Django models, no API traffic required!
-
-The full documentation is available here: https://dj-stripe.readthedocs.io/
+The full documentation is at http://dj-stripe.rtfd.org.
 
 Features
 --------
 
-* Subscriptions
-* Individual charges
-* Stripe Sources
-* Stripe v2 and v3 support
-* Supports Stripe API `2018-05-21`
+* Subscription management
+* Designed for easy implementation of post-registration subscription forms
+* Single-unit purchases
+* Works with Django >= 1.10
+* Works with Python 3.5, 3.4, 2.7
+* Works with Bootstrap 3
+* Built-in migrations
+* Dead-Easy installation
+* Leverages the best of the 3rd party Django package ecosystem
+* `djstripe` namespace so you can have more than one payments related app
+* Documented
+* Tested
+* Current API version (2012-11-07), in progress of being updated
 
-Requirements
+Constraints
 ------------
 
-* Django >= 2.0
-* Python >= 3.4
-* Supports Stripe exclusively. For PayPal, see `dj-paypal <https://github.com/HearthSim/dj-paypal>`_ instead.
+1. For stripe.com only
+2. Only use or support well-maintained third-party libraries
+3. For modern Python and Django
 
 
 Quickstart
@@ -50,29 +71,47 @@ Add ``djstripe`` to your ``INSTALLED_APPS``:
 
     INSTALLED_APPS =(
         ...
+        "django.contrib.sites"
+        ...
         "djstripe",
         ...
     )
 
-Add your Stripe keys and set the operating mode:
+Add your stripe keys:
 
 .. code-block:: python
 
-    STRIPE_LIVE_PUBLIC_KEY = os.environ.get("STRIPE_LIVE_PUBLIC_KEY", "<your publishable key>")
-    STRIPE_LIVE_SECRET_KEY = os.environ.get("STRIPE_LIVE_SECRET_KEY", "<your secret key>")
-    STRIPE_TEST_PUBLIC_KEY = os.environ.get("STRIPE_TEST_PUBLIC_KEY", "<your publishable key>")
-    STRIPE_TEST_SECRET_KEY = os.environ.get("STRIPE_TEST_SECRET_KEY", "<your secret key>")
-    STRIPE_LIVE_MODE = False  # Change to True in production
+    STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "<your publishable key>")
+    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "<your secret key>")
 
-Add some payment plans via the Stripe.com dashboard.
-
-Add to urls.py:
+Add some payment plans:
 
 .. code-block:: python
 
-    path("stripe/", include("djstripe.urls", namespace="djstripe")),
+    DJSTRIPE_PLANS = {
+        "monthly": {
+            "stripe_plan_id": "pro-monthly",
+            "name": "Web App Pro ($24.99/month)",
+            "description": "The monthly subscription plan to WebApp",
+            "price": 2499,  # $24.99
+            "currency": "usd",
+            "interval": "month"
+        },
+        "yearly": {
+            "stripe_plan_id": "pro-yearly",
+            "name": "Web App Pro ($199/year)",
+            "description": "The annual subscription plan to WebApp",
+            "price": 19900,  # $199.00
+            "currency": "usd",
+            "interval": "year"
+        }
+    }
 
-Then tell Stripe about the webhook (Stripe webhook docs can be found `here <https://stripe.com/docs/webhooks>`_) using the full URL of your endpoint from the urls.py step above (e.g. ``https://example.com/stripe/webhook``).
+Add to the urls.py:
+
+.. code-block:: python
+
+    url(r'^payments/', include('djstripe.urls', namespace="djstripe")),
 
 Run the commands::
 
@@ -80,7 +119,29 @@ Run the commands::
 
     python manage.py djstripe_init_customers
 
-    python manage.py djstripe_sync_plans_from_stripe
+    python manage.py djstripe_init_plans
+
+If you haven't already, add JQuery and the Bootstrap 3.0.0+ JS and CSS to your base template:
+
+.. code-block:: html
+
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
+
+    <!-- Latest JQuery (IE9+) -->
+    <script src="//code.jquery.com/jquery-2.1.4.min.js"></script>
+
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+
+Also, if you don't have it already, add a javascript block to your base.html file:
+
+.. code-block:: html
+
+    {% block javascript %}{% endblock %}
 
 
 Running the Tests
@@ -89,18 +150,25 @@ Running the Tests
 Assuming the tests are run against PostgreSQL::
 
     createdb djstripe
-    pip install tox
+    pip install -r tests/requirements.txt
     tox
 
 Follows Best Practices
 ======================
 
-.. image:: https://twoscoops.smugmug.com/Two-Scoops-Press-Media-Kit/i-C8s5jkn/0/O/favicon-152.png
+.. image:: http://twoscoops.smugmug.com/Two-Scoops-Press-Media-Kit/i-C8s5jkn/0/O/favicon-152.png
    :name: Two Scoops Logo
    :align: center
    :alt: Two Scoops of Django
-   :target: https://www.twoscoopspress.org/products/two-scoops-of-django-1-11
+   :target: http://twoscoopspress.org/products/two-scoops-of-django-1-8
 
-This project follows best practices as espoused in `Two Scoops of Django: Best Practices for Django 1.11`_.
+This project follows best practices as espoused in `Two Scoops of Django: Best Practices for Django 1.8`_.
 
-.. _`Two Scoops of Django: Best Practices for Django 1.11`: https://twoscoopspress.org/products/two-scoops-of-django-1-11
+.. _`Two Scoops of Django: Best Practices for Django 1.8`: http://twoscoopspress.org/products/two-scoops-of-django-1-8
+
+Similar Projects
+----------------
+
+* https://github.com/eldarion/django-stripe-payments - The project that dj-stripe forked. It's an awesome project and worth checking out.
+* https://github.com/agiliq/merchant - A single charge payment processing system that also includes many other Gateways. Really nice but doesn't out-of-the-box handle the use case of subscription payments.
+* https://github.com/GoodCloud/django-zebra - One of the first stripe payment systems for Django.

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.management.commands.djstripe_sync_customers.
 
@@ -6,6 +7,8 @@
 .. moduleauthor:: @kavdev, @pydanny, @shvechikov
 
 """
+from __future__ import unicode_literals
+
 from django.core.management.base import BaseCommand
 
 from ...settings import get_subscriber_model
@@ -19,7 +22,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Call sync_subscriber on Subscribers without customers associated to them."""
-        qs = get_subscriber_model().objects.filter(djstripe_customers__isnull=True)
+        qs = get_subscriber_model().objects.filter(customer__isnull=True)
         count = 0
         total = qs.count()
         for subscriber in qs:

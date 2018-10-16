@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.management.commands.djstripe_init_customers.
 
@@ -6,6 +7,8 @@
 .. moduleauthor:: @kavdev, @pydanny
 
 """
+from __future__ import unicode_literals
+
 from django.core.management.base import BaseCommand
 
 from ...models import Customer
@@ -19,7 +22,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Create Customer objects for Subscribers without Customer objects associated."""
-        for subscriber in get_subscriber_model().objects.filter(djstripe_customers=None):
+        for subscriber in get_subscriber_model().objects.filter(customer__isnull=True):
             # use get_or_create in case of race conditions on large subscriber bases
             Customer.get_or_create(subscriber=subscriber)
             print("Created subscriber for {0}".format(subscriber.email))

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: dj-stripe.contrib.rest_framework.permissions.
 
@@ -8,8 +9,8 @@
 """
 from rest_framework.permissions import BasePermission
 
-from ...settings import subscriber_request_callback
 from ...utils import subscriber_has_active_subscription
+from ...settings import subscriber_request_callback
 
 
 class DJStripeSubscriptionPermission(BasePermission):

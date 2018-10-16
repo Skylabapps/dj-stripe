@@ -6,28 +6,28 @@
 .. moduleauthor:: Lee Skillen (@lskillen)
 
 """
-from copy import deepcopy
-from unittest.mock import ANY, patch
 
+from copy import deepcopy
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test.testcases import TestCase
-from stripe.error import InvalidRequestError
+from mock import patch, ANY
 
-from djstripe.models import Invoice, Plan, Subscription, UpcomingInvoice
-from djstripe.settings import STRIPE_SECRET_KEY
+from djstripe.models import Customer, Invoice, Account, UpcomingInvoice, \
+    Subscription, Plan
+from djstripe.models import InvalidRequestError
 
-from . import (
-    FAKE_CHARGE, FAKE_CUSTOMER, FAKE_INVOICE, FAKE_INVOICEITEM_II,
-    FAKE_PLAN, FAKE_SUBSCRIPTION, FAKE_UPCOMING_INVOICE, default_account
-)
+from tests import (FAKE_INVOICE, FAKE_CHARGE, FAKE_CUSTOMER, FAKE_SUBSCRIPTION, FAKE_PLAN, FAKE_INVOICEITEM_II,
+                   FAKE_UPCOMING_INVOICE)
 
 
 class InvoiceTest(TestCase):
 
     def setUp(self):
-        self.account = default_account()
+        self.account = Account.objects.create()
         self.user = get_user_model().objects.create_user(username="pydanny", email="pydanny@gmail.com")
-        self.customer = FAKE_CUSTOMER.create_for_user(self.user)
+        self.customer = Customer.objects.create(subscriber=self.user, stripe_id=FAKE_CUSTOMER["id"], livemode=False)
 
     @patch("djstripe.models.Account.get_default_account")
     @patch("stripe.Subscription.retrieve", return_value=deepcopy(FAKE_SUBSCRIPTION))
@@ -36,7 +36,16 @@ class InvoiceTest(TestCase):
         default_account_mock.return_value = self.account
         invoice = Invoice.sync_from_stripe_data(deepcopy(FAKE_INVOICE))
         self.assertEqual(invoice.get_stripe_dashboard_url(), self.customer.get_stripe_dashboard_url())
-        self.assertEqual(str(invoice), "Invoice #XXXXXXX-0001")
+
+        self.assertEqual(
+            "<amount_due={amount_due}, date={date}, status={status}, stripe_id={stripe_id}>".format(
+                amount_due=invoice.amount_due,
+                date=invoice.date,
+                status=invoice.status,
+                stripe_id=invoice.stripe_id
+            ),
+            str(invoice)
+        )
 
     @patch("stripe.Invoice.retrieve")
     @patch("djstripe.models.Account.get_default_account")
@@ -53,9 +62,8 @@ class InvoiceTest(TestCase):
         invoice = Invoice.sync_from_stripe_data(fake_invoice)
         return_value = invoice.retry()
 
-        invoice_retrieve_mock.assert_called_once_with(
-            id=invoice.id, api_key=STRIPE_SECRET_KEY, expand=[]
-        )
+        invoice_retrieve_mock.assert_called_once_with(id=invoice.stripe_id, api_key=settings.STRIPE_SECRET_KEY,
+                                                      expand=None)
         self.assertTrue(return_value)
 
     @patch("stripe.Invoice.retrieve")
@@ -151,10 +159,10 @@ class InvoiceTest(TestCase):
         invoice = Invoice.sync_from_stripe_data(invoice_data)
 
         items = invoice.invoiceitems.all()
-        self.assertEqual(1, len(items))
-        item_id = "{invoice_id}-{subscription_id}".format(invoice_id=invoice.id,
+        self.assertEquals(1, len(items))
+        item_id = "{invoice_id}-{subscription_id}".format(invoice_id=invoice.stripe_id,
                                                           subscription_id=FAKE_SUBSCRIPTION["id"])
-        self.assertEqual(item_id, items[0].id)
+        self.assertEquals(item_id, items[0].stripe_id)
 
     @patch("djstripe.models.Account.get_default_account")
     @patch("stripe.Subscription.retrieve", return_value=deepcopy(FAKE_SUBSCRIPTION))
@@ -168,7 +176,7 @@ class InvoiceTest(TestCase):
         invoice = Invoice.sync_from_stripe_data(invoice_data)
 
         self.assertIsNotNone(invoice.plan)  # retrieved from invoice item
-        self.assertEqual(FAKE_PLAN["id"], invoice.plan.id)
+        self.assertEquals(FAKE_PLAN["id"], invoice.plan.stripe_id)
 
     @patch("djstripe.models.Account.get_default_account")
     @patch("stripe.Subscription.retrieve", return_value=deepcopy(FAKE_SUBSCRIPTION))
@@ -183,7 +191,7 @@ class InvoiceTest(TestCase):
         invoice = Invoice.sync_from_stripe_data(invoice_data)
 
         self.assertIsNotNone(invoice)
-        self.assertEqual(2, len(invoice.invoiceitems.all()))
+        self.assertEquals(2, len(invoice.invoiceitems.all()))
 
     @patch("djstripe.models.Account.get_default_account")
     @patch("stripe.Subscription.retrieve", return_value=deepcopy(FAKE_SUBSCRIPTION))
@@ -196,7 +204,7 @@ class InvoiceTest(TestCase):
         invoice = Invoice.sync_from_stripe_data(invoice_data)
 
         self.assertIsNotNone(invoice.plan)  # retrieved from invoice item
-        self.assertEqual(FAKE_PLAN["id"], invoice.plan.id)
+        self.assertEquals(FAKE_PLAN["id"], invoice.plan.stripe_id)
 
     @patch("djstripe.models.Account.get_default_account")
     @patch("stripe.Subscription.retrieve", return_value=deepcopy(FAKE_SUBSCRIPTION))
@@ -209,7 +217,7 @@ class InvoiceTest(TestCase):
         invoice_data["lines"]["data"][0]["plan"] = None
         invoice = Invoice.sync_from_stripe_data(invoice_data)
         self.assertIsNotNone(invoice.plan)  # retrieved from subscription
-        self.assertEqual(FAKE_PLAN["id"], invoice.plan.id)
+        self.assertEquals(FAKE_PLAN["id"], invoice.plan.stripe_id)
 
     @patch("djstripe.models.Account.get_default_account")
     @patch("stripe.Subscription.retrieve", return_value=deepcopy(FAKE_SUBSCRIPTION))
@@ -229,27 +237,23 @@ class InvoiceTest(TestCase):
     def test_upcoming_invoice(self, invoice_upcoming_mock, subscription_retrieve_mock, plan_retrieve_mock):
         invoice = UpcomingInvoice.upcoming()
         self.assertIsNotNone(invoice)
-        self.assertIsNone(invoice.id)
+        self.assertIsNone(invoice.stripe_id)
         self.assertIsNone(invoice.save())
-        self.assertEqual(invoice.get_stripe_dashboard_url(), "")
+        self.assertEquals(invoice.get_stripe_dashboard_url(), "")
 
         subscription_retrieve_mock.assert_called_once_with(api_key=ANY, expand=ANY, id=FAKE_SUBSCRIPTION["id"])
         plan_retrieve_mock.assert_not_called()
 
         items = invoice.invoiceitems.all()
-        self.assertEqual(1, len(items))
-        self.assertEqual(FAKE_SUBSCRIPTION["id"], items[0].id)
-
-        # delete/update should do nothing
-        self.assertEqual(invoice.invoiceitems.update(), 0)
-        self.assertEqual(invoice.invoiceitems.delete(), 0)
+        self.assertEquals(1, len(items))
+        self.assertEquals(FAKE_SUBSCRIPTION["id"], items[0].stripe_id)
 
         self.assertIsNotNone(invoice.plan)
-        self.assertEqual(FAKE_PLAN["id"], invoice.plan.id)
+        self.assertEquals(FAKE_PLAN["id"], invoice.plan.stripe_id)
 
         invoice._invoiceitems = []
         items = invoice.invoiceitems.all()
-        self.assertEqual(0, len(items))
+        self.assertEquals(0, len(items))
         self.assertIsNotNone(invoice.plan)
 
     @patch("stripe.Plan.retrieve", return_value=deepcopy(FAKE_PLAN))
@@ -257,32 +261,32 @@ class InvoiceTest(TestCase):
     @patch("stripe.Invoice.upcoming", return_value=deepcopy(FAKE_UPCOMING_INVOICE))
     def test_upcoming_invoice_with_subscription(self, invoice_upcoming_mock, subscription_retrieve_mock,
                                                 plan_retrieve_mock):
-        invoice = Invoice.upcoming(subscription=Subscription(id=FAKE_SUBSCRIPTION["id"]))
+        invoice = Invoice.upcoming(subscription=Subscription(stripe_id=FAKE_SUBSCRIPTION["id"]))
         self.assertIsNotNone(invoice)
-        self.assertIsNone(invoice.id)
+        self.assertIsNone(invoice.stripe_id)
         self.assertIsNone(invoice.save())
 
         subscription_retrieve_mock.assert_called_once_with(api_key=ANY, expand=ANY, id=FAKE_SUBSCRIPTION["id"])
         plan_retrieve_mock.assert_not_called()
 
         self.assertIsNotNone(invoice.plan)
-        self.assertEqual(FAKE_PLAN["id"], invoice.plan.id)
+        self.assertEquals(FAKE_PLAN["id"], invoice.plan.stripe_id)
 
     @patch("stripe.Plan.retrieve", return_value=deepcopy(FAKE_PLAN))
     @patch("stripe.Subscription.retrieve", return_value=deepcopy(FAKE_SUBSCRIPTION))
     @patch("stripe.Invoice.upcoming", return_value=deepcopy(FAKE_UPCOMING_INVOICE))
     def test_upcoming_invoice_with_subscription_plan(self, invoice_upcoming_mock, subscription_retrieve_mock,
                                                      plan_retrieve_mock):
-        invoice = Invoice.upcoming(subscription_plan=Plan(id=FAKE_PLAN["id"]))
+        invoice = Invoice.upcoming(subscription_plan=Plan(stripe_id=FAKE_PLAN["id"]))
         self.assertIsNotNone(invoice)
-        self.assertIsNone(invoice.id)
+        self.assertIsNone(invoice.stripe_id)
         self.assertIsNone(invoice.save())
 
         subscription_retrieve_mock.assert_called_once_with(api_key=ANY, expand=ANY, id=FAKE_SUBSCRIPTION["id"])
         plan_retrieve_mock.assert_not_called()
 
         self.assertIsNotNone(invoice.plan)
-        self.assertEqual(FAKE_PLAN["id"], invoice.plan.id)
+        self.assertEquals(FAKE_PLAN["id"], invoice.plan.stripe_id)
 
     @patch("stripe.Invoice.upcoming", side_effect=InvalidRequestError("Nothing to invoice for customer", None))
     def test_no_upcoming_invoices(self, invoice_upcoming_mock):

@@ -7,53 +7,49 @@
 
 """
 
+from __future__ import unicode_literals
+
 from copy import deepcopy
-from unittest.mock import PropertyMock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
+from mock import patch, PropertyMock
 
-from djstripe.contrib.rest_framework.serializers import (
-    CreateSubscriptionSerializer, SubscriptionSerializer
-)
-from djstripe.enums import SubscriptionStatus
-from djstripe.models import Plan
-
-from .. import FAKE_CUSTOMER, FAKE_PLAN
+from djstripe.contrib.rest_framework.serializers import SubscriptionSerializer, CreateSubscriptionSerializer
+from djstripe.models import Subscription, Plan, Customer
+from tests import FAKE_PLAN, FAKE_CUSTOMER
 
 
 class SubscriptionSerializerTest(TestCase):
 
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="pydanny", email="pydanny@gmail.com")
-        self.customer = FAKE_CUSTOMER.create_for_user(self.user)
+        self.customer = Customer.objects.create(subscriber=self.user, stripe_id=FAKE_CUSTOMER["id"], livemode=False)
         self.plan = Plan.sync_from_stripe_data(deepcopy(FAKE_PLAN))
 
     def test_valid_serializer(self):
         now = timezone.now()
         serializer = SubscriptionSerializer(
             data={
-                'id': "sub_6lsC8pt7IcFpjA",
-                'customer': self.customer.djstripe_id,
-                "billing": "charge_automatically",
-                'plan': self.plan.djstripe_id,
+                'stripe_id': "sub_6lsC8pt7IcFpjA",
+                'customer': self.customer.id,
+                'plan': self.plan.id,
                 'quantity': 2,
                 'start': now,
-                'status': SubscriptionStatus.active,
+                'status': Subscription.STATUS_ACTIVE,
                 'current_period_end': now + timezone.timedelta(days=5),
                 'current_period_start': now,
             }
         )
         self.assertTrue(serializer.is_valid())
         self.assertEqual(serializer.validated_data, {
-            'id': "sub_6lsC8pt7IcFpjA",
+            'stripe_id': "sub_6lsC8pt7IcFpjA",
             'customer': self.customer,
-            "billing": "charge_automatically",
             'plan': self.plan,
             'quantity': 2,
             'start': now,
-            'status': SubscriptionStatus.active,
+            'status': Subscription.STATUS_ACTIVE,
             'current_period_end': now + timezone.timedelta(days=5),
             'current_period_start': now,
         })
@@ -63,12 +59,11 @@ class SubscriptionSerializerTest(TestCase):
         now = timezone.now()
         serializer = SubscriptionSerializer(
             data={
-                'id': "sub_6lsC8pt7IcFpjA",
-                'customer': self.customer.djstripe_id,
-                "billing": "charge_automatically",
-                'plan': self.plan.djstripe_id,
+                'stripe_id': "sub_6lsC8pt7IcFpjA",
+                'customer': self.customer.id,
+                'plan': self.plan.id,
                 'start': now,
-                'status': SubscriptionStatus.active,
+                'status': Subscription.STATUS_ACTIVE,
                 'current_period_end': now + timezone.timedelta(days=5),
                 'current_period_start': now,
             }
@@ -88,12 +83,12 @@ class CreateSubscriptionSerializerTest(TestCase):
         token = stripe_token_mock(card={})
         serializer = CreateSubscriptionSerializer(
             data={
-                'plan': self.plan.id,
+                'plan': self.plan.stripe_id,
                 'stripe_token': token.id,
             }
         )
         self.assertTrue(serializer.is_valid())
-        self.assertEqual(serializer.validated_data['plan'], str(self.plan.id))
+        self.assertEqual(serializer.validated_data['plan'], str(self.plan.stripe_id))
         self.assertIn('stripe_token', serializer.validated_data)
         self.assertEqual(serializer.errors, {})
 
@@ -103,7 +98,7 @@ class CreateSubscriptionSerializerTest(TestCase):
         token = stripe_token_mock(card={})
         serializer = CreateSubscriptionSerializer(
             data={
-                'plan': self.plan.id,
+                'plan': self.plan.stripe_id,
                 'stripe_token': token.id,
                 'charge_immediately': True,
                 'tax_percent': 13.00,

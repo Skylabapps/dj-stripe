@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.signals.
 
@@ -9,9 +10,9 @@
 
 Stripe docs for Webhooks: https://stripe.com/docs/webhooks
 """
-from django.db.models.signals import pre_delete
-from django.dispatch import Signal, receiver
 
+from django.dispatch import Signal, receiver
+from django.db.models.signals import pre_delete
 from . import settings as djstripe_settings
 
 

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: dj-stripe.contrib.rest_framework.views.
 
@@ -7,14 +8,16 @@
 
 """
 
+from __future__ import unicode_literals
+
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ...models import Customer
-from ...settings import CANCELLATION_AT_PERIOD_END, subscriber_request_callback
-from .serializers import CreateSubscriptionSerializer, SubscriptionSerializer
+from ...settings import subscriber_request_callback, CANCELLATION_AT_PERIOD_END
+from .serializers import SubscriptionSerializer, CreateSubscriptionSerializer
 
 
 class SubscriptionRestView(APIView):
@@ -28,12 +31,13 @@ class SubscriptionRestView(APIView):
 
         Returns with status code 200.
         """
-        customer, _created = Customer.get_or_create(
-            subscriber=subscriber_request_callback(self.request),
-        )
+        try:
+            customer, _created = Customer.get_or_create(subscriber=subscriber_request_callback(self.request))
 
-        serializer = SubscriptionSerializer(customer.subscription)
-        return Response(serializer.data)
+            serializer = SubscriptionSerializer(customer.subscription)
+            return Response(serializer.data)
+        except:
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
     def post(self, request, **kwargs):
         """
@@ -49,16 +53,12 @@ class SubscriptionRestView(APIView):
                     subscriber=subscriber_request_callback(self.request)
                 )
                 customer.add_card(serializer.data["stripe_token"])
-                charge_immediately = serializer.data.get("charge_immediately")
-                if charge_immediately is None:
-                    charge_immediately = True
-
                 customer.subscribe(
                     serializer.data["plan"],
-                    charge_immediately
+                    serializer.data.get("charge_immediately", True)
                 )
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
-            except Exception:
+            except:
                 # TODO: Better error messages
                 return Response(
                     "Something went wrong processing the payment.",
@@ -78,5 +78,5 @@ class SubscriptionRestView(APIView):
             customer.subscription.cancel(at_period_end=CANCELLATION_AT_PERIOD_END)
 
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except Exception:
+        except:
             return Response("Something went wrong cancelling the subscription.", status=status.HTTP_400_BAD_REQUEST)

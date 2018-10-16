@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.settings.
 
@@ -5,16 +6,18 @@
 
 .. moduleauthor:: @kavdev, @pydanny, @lskillen, and @chrissmejia
 """
-import stripe
+from __future__ import unicode_literals
+
 from django.apps import apps as django_apps
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.utils import six
+from django.utils.dateparse import date_re
 from django.utils.module_loading import import_string
+import stripe
 
-from .checks import validate_stripe_api_version
 
-
-DEFAULT_STRIPE_API_VERSION = "2018-05-21"
+DEFAULT_STRIPE_API_VERSION = '2017-02-14'
 
 
 def get_callback_function(setting_name, default=None):
@@ -40,7 +43,7 @@ def get_callback_function(setting_name, default=None):
     if callable(func):
         return func
 
-    if isinstance(func, str):
+    if isinstance(func, six.string_types):
         func = import_string(func)
 
     if not callable(func):
@@ -62,22 +65,29 @@ def _get_idempotency_key(object_type, action, livemode):
 
 get_idempotency_key = get_callback_function("DJSTRIPE_IDEMPOTENCY_KEY_CALLBACK", _get_idempotency_key)
 
-USE_NATIVE_JSONFIELD = getattr(settings, "DJSTRIPE_USE_NATIVE_JSONFIELD", False)
+
+PAYMENTS_PLANS = getattr(settings, "DJSTRIPE_PLANS", {})
+PLAN_HIERARCHY = getattr(settings, "DJSTRIPE_PLAN_HIERARCHY", {})
 
 PRORATION_POLICY = getattr(settings, 'DJSTRIPE_PRORATION_POLICY', False)
+PRORATION_POLICY_FOR_UPGRADES = getattr(settings, 'DJSTRIPE_PRORATION_POLICY_FOR_UPGRADES', False)
 CANCELLATION_AT_PERIOD_END = not getattr(settings, 'DJSTRIPE_PRORATION_POLICY', False)
 
-DJSTRIPE_WEBHOOK_URL = getattr(settings, "DJSTRIPE_WEBHOOK_URL", r"^webhook/$")
+DEFAULT_PLAN = getattr(settings, "DJSTRIPE_DEFAULT_PLAN", None)
 
-WEBHOOK_TOLERANCE = getattr(settings, "DJSTRIPE_WEBHOOK_TOLERANCE", 300)
-WEBHOOK_SECRET = getattr(settings, "DJSTRIPE_WEBHOOK_SECRET", "")
+# Try to find the new settings variable first. If that fails, revert to the
+# old variable.
+trial_period_for_subscriber_callback = (
+    get_callback_function("DJSTRIPE_TRIAL_PERIOD_FOR_SUBSCRIBER_CALLBACK") or
+    get_callback_function("DJSTRIPE_TRIAL_PERIOD_FOR_USER_CALLBACK"))
+
+DJSTRIPE_WEBHOOK_URL = getattr(settings, "DJSTRIPE_WEBHOOK_URL", r"^webhook/$")
 
 # Webhook event callbacks allow an application to take control of what happens
 # when an event from Stripe is received.  One suggestion is to put the event
 # onto a task queue (such as celery) for asynchronous processing.
 WEBHOOK_EVENT_CALLBACK = get_callback_function("DJSTRIPE_WEBHOOK_EVENT_CALLBACK")
 
-SUBSCRIBER_CUSTOMER_KEY = getattr(settings, "DJSTRIPE_SUBSCRIBER_CUSTOMER_KEY", "djstripe_subscriber")
 
 TEST_API_KEY = getattr(settings, "STRIPE_TEST_SECRET_KEY", "")
 LIVE_API_KEY = getattr(settings, "STRIPE_LIVE_SECRET_KEY", "")
@@ -100,28 +110,7 @@ else:
     STRIPE_PUBLIC_KEY = getattr(settings, "STRIPE_TEST_PUBLIC_KEY", "")
 
 
-# Set STRIPE_API_HOST if you want to use a different Stripe API server
-# Example: https://github.com/stripe/stripe-mock
-if hasattr(settings, "STRIPE_API_HOST"):
-    stripe.api_base = settings.STRIPE_API_HOST
-
-
-def get_default_api_key(livemode):
-    """
-    Returns the default API key for a value of `livemode`.
-    """
-    if livemode is None:
-        # Livemode is unknown. Use the default secret key.
-        return STRIPE_SECRET_KEY
-    elif livemode:
-        # Livemode is true, use the live secret key
-        return LIVE_API_KEY or STRIPE_SECRET_KEY
-    else:
-        # Livemode is false, use the test secret key
-        return TEST_API_KEY or STRIPE_SECRET_KEY
-
-
-SUBSCRIPTION_REDIRECT = getattr(settings, "DJSTRIPE_SUBSCRIPTION_REDIRECT", "")
+SUBSCRIPTION_REDIRECT = getattr(settings, "DJSTRIPE_SUBSCRIPTION_REDIRECT", "djstripe:subscribe")
 
 
 ZERO_DECIMAL_CURRENCIES = set([
@@ -190,8 +179,20 @@ def set_stripe_api_version(version=None, validate=True):
     version = version or get_stripe_api_version()
 
     if validate:
-        valid = validate_stripe_api_version(version)
-        if not valid:
-            raise ValueError("Bad stripe API version: {}".format(version))
+        check_stripe_api_version(version)
 
     stripe.api_version = version
+
+
+def check_stripe_api_version(version):
+    """
+    Check the API version is formatted correctly for Stripe.
+
+    :param version: The version to set for the Stripe API.
+    :type version: ``str``
+    :raises ImproperlyConfigured: If the version is not formatted correctly.
+    """
+    if not date_re.match(version):
+        raise ImproperlyConfigured(
+            "The Stripe API version must be a valid date in the form of "
+            "'YYYY-MM-DD'. Value provided: '{}'.".format(version))

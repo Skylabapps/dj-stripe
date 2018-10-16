@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.utils.
 
@@ -6,13 +7,14 @@
 .. moduleauthor:: @kavdev, @pydanny, @wahuneke
 """
 
+from __future__ import unicode_literals
+
 import datetime
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models.query import QuerySet
 from django.utils import timezone
 
 
@@ -23,25 +25,6 @@ ANONYMOUS_USER_ERROR_MSG = (
     "Please read the warning at "
     "http://dj-stripe.readthedocs.org/en/latest/usage.html#ongoing-subscriptions."
 )
-
-
-def fix_django_headers(meta):
-    """
-    Fix this nonsensical API:
-    https://docs.djangoproject.com/en/1.11/ref/request-response/
-    https://code.djangoproject.com/ticket/20147
-    """
-    ret = {}
-    for k, v in meta.items():
-        if k.startswith("HTTP_"):
-            k = k[len("HTTP_"):]
-        elif k not in ("CONTENT_LENGTH", "CONTENT_TYPE"):
-            # Skip CGI garbage
-            continue
-
-        ret[k.lower().replace("_", "-")] = v
-
-    return ret
 
 
 def subscriber_has_active_subscription(subscriber, plan=None):
@@ -98,6 +81,24 @@ def get_supported_currency_choices(api_key):
     return [(currency, currency.upper()) for currency in supported_payment_currencies]
 
 
+def dict_nested_accessor(d, name):
+    """
+    Access a dictionary value, possibly in a nested dictionary.
+
+    >>> dict_nested_accessor({'id': 'joe'}, 'id')
+    "joe"
+    >>> dict_nested_accessor({'inner': {'id': 'joe'}}, 'inner.id')
+    "joe"
+
+    :type d: dict
+    """
+    names = name.split(".", 1)
+    if len(names) > 1:
+        return dict_nested_accessor(d[names[0]], names[1])
+    else:
+        return d[name]
+
+
 def clear_expired_idempotency_keys():
     from .models import IdempotencyKey
 
@@ -105,20 +106,20 @@ def clear_expired_idempotency_keys():
     IdempotencyKey.objects.filter(created__lt=threshold).delete()
 
 
-def convert_tstamp(response):
+def convert_tstamp(response, field_name=None):
     """
     Convert a Stripe API timestamp response (unix epoch) to a native datetime.
 
     :rtype: datetime
     """
-    if response is None:
-        # Allow passing None to convert_tstamp()
-        return response
-
     # Overrides the set timezone to UTC - I think...
     tz = timezone.utc if settings.USE_TZ else None
 
-    return datetime.datetime.fromtimestamp(response, tz)
+    if not field_name:
+        return datetime.datetime.fromtimestamp(response, tz)
+    else:
+        if field_name in response and response[field_name]:
+            return datetime.datetime.fromtimestamp(response[field_name], tz)
 
 
 # TODO: Finish this.
@@ -133,27 +134,4 @@ CURRENCY_SIGILS = {
 def get_friendly_currency_amount(amount, currency):
     currency = currency.upper()
     sigil = CURRENCY_SIGILS.get(currency, "")
-    return "{sigil}{amount:.2f} {currency}".format(sigil=sigil, amount=amount, currency=currency)
-
-
-class QuerySetMock(QuerySet):
-    """
-    A mocked QuerySet class that does not handle updates.
-    Used by UpcomingInvoice.invoiceitems.
-    """
-
-    @classmethod
-    def from_iterable(cls, model, iterable):
-        instance = cls(model)
-        instance._result_cache = list(iterable)
-        instance._prefetch_done = True
-        return instance
-
-    def _clone(self):
-        return self.__class__.from_iterable(self.model, self._result_cache)
-
-    def update(self):
-        return 0
-
-    def delete(self):
-        return 0
+    return "{sigil}{amount} {currency}".format(sigil=sigil, amount=amount, currency=currency)

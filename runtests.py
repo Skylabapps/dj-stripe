@@ -1,15 +1,15 @@
+from argparse import ArgumentParser
 import os
 import sys
-from argparse import ArgumentParser
 
-import django
 from coverage import Coverage
+import django
 from django.conf import settings
 from termcolor import colored
 
 
 TESTS_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-TESTS_THRESHOLD = 95
+TESTS_THRESHOLD = 100
 
 
 def main():
@@ -34,23 +34,18 @@ def run_test_suite(args):
         cov.erase()
         cov.start()
 
-    test_db_name = os.environ.get('DJSTRIPE_TEST_DB_NAME', 'djstripe')
-    test_db_user = os.environ.get('DJSTRIPE_TEST_DB_USER', 'postgres')
-    test_db_pass = os.environ.get('DJSTRIPE_TEST_DB_PASS', '')
-
     settings.configure(
         DEBUG=True,
-        SECRET_KEY="djstripe",
-        SITE_ID=1,
-        TIME_ZONE="UTC",
         USE_TZ=True,
+        TIME_ZONE="UTC",
+        SITE_ID=1,
         DATABASES={
             "default": {
                 "ENGINE": "django.db.backends.postgresql_psycopg2",
-                "NAME": test_db_name,
-                "USER": test_db_user,
-                "PASSWORD": test_db_pass,
-                "HOST": "localhost",
+                "NAME": "djstripe",
+                "USER": "",
+                "PASSWORD": "",
+                "HOST": "",
                 "PORT": "",
             },
         },
@@ -66,7 +61,7 @@ def run_test_suite(args):
                 },
             },
         ],
-        ROOT_URLCONF="tests.urls",
+        ROOT_URLCONF="tests.test_urls",
         INSTALLED_APPS=[
             "django.contrib.admin",
             "django.contrib.auth",
@@ -78,15 +73,13 @@ def run_test_suite(args):
             "tests",
             "tests.apps.testapp"
         ],
-        MIDDLEWARE=(
+        MIDDLEWARE_CLASSES=(
             "django.contrib.sessions.middleware.SessionMiddleware",
             "django.contrib.auth.middleware.AuthenticationMiddleware",
             "django.contrib.messages.middleware.MessageMiddleware"
         ),
-        STRIPE_LIVE_PUBLIC_KEY=os.environ.get("STRIPE_PUBLIC_KEY", "pk_test_123"),
-        STRIPE_LIVE_SECRET_KEY=os.environ.get("STRIPE_SECRET_KEY", "sk_test_123"),
-        STRIPE_TEST_PUBLIC_KEY=os.environ.get("STRIPE_PUBLIC_KEY", "pk_test_123"),
-        STRIPE_TEST_SECRET_KEY=os.environ.get("STRIPE_SECRET_KEY", "sk_test_123"),
+        STRIPE_PUBLIC_KEY=os.environ.get("STRIPE_PUBLIC_KEY", ""),
+        STRIPE_SECRET_KEY=os.environ.get("STRIPE_SECRET_KEY", ""),
         DJSTRIPE_PLANS={
             "test0": {
                 "stripe_plan_id": "test_id_0",
@@ -137,15 +130,35 @@ def run_test_suite(args):
                 "interval": "month"
             }
         },
+        DJSTRIPE_PLAN_HIERARCHY={
+            "bronze": {
+                "level": 1,
+                "plans": [
+                    "test0",
+                    "test",
+                ]
+            },
+            "silver": {
+                "level": 2,
+                "plans": [
+                    "test2",
+                    "test_deletion",
+                ]
+            },
+            "gold": {
+                "level": 3,
+                "plans": [
+                    "test_trial",
+                    "unidentified_test_plan",
+                ]
+            },
+        },
         DJSTRIPE_SUBSCRIPTION_REQUIRED_EXCEPTION_URLS=(
             "(admin)",
             "test_url_name",
             "testapp_namespaced:test_url_namespaced",
             "fn:/test_fnmatch*"
         ),
-        DJSTRIPE_USE_NATIVE_JSONFIELD=os.environ.get("USE_NATIVE_JSONFIELD", "") == "1",
-        DJSTRIPE_SUBSCRIPTION_REDIRECT="test_url_subscribe",
-        DJSTRIPE_WEBHOOK_VALIDATION="retrieve_event",
     )
 
     # Avoid AppRegistryNotReady exception
@@ -166,13 +179,9 @@ def run_test_suite(args):
     args = sys.argv[1:]
     sys.argv = sys.argv[0:1]
 
-    # Add the ability to run tests on executable files. This is important when running tests on WSL, where permissions
-    # are dictated by Windows instead of Unix.
-    sys.argv += ["--exe"]
-
     from django_nose import NoseTestSuiteRunner
 
-    test_runner = NoseTestSuiteRunner(verbosity=1, keepdb=False, failfast=True)
+    test_runner = NoseTestSuiteRunner(verbosity=1, keepdb=True, failfast=True)
     failures = test_runner.run_tests(tests)
 
     if failures:

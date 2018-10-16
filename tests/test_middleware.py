@@ -5,20 +5,20 @@
 .. moduleauthor:: Alex Kavanaugh (@kavdev)
 
 """
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.test import TestCase
 from django.test.client import RequestFactory
-from django.test.utils import modify_settings, override_settings
+from django.test.utils import override_settings
 
 from djstripe.middleware import SubscriptionPaymentMiddleware
 from djstripe.models import Customer, Subscription
-
-from . import FAKE_CUSTOMER, FAKE_SUBSCRIPTION, FUTURE_DATE
+from tests import FAKE_SUBSCRIPTION, FUTURE_DATE, FAKE_CUSTOMER
 
 
 class MiddlewareURLTest(TestCase):
-    urlconf = "tests.urls"
+    urlconf = 'tests.test_urls'
 
     def setUp(self):
         self.settings(ROOT_URLCONF=self.urlconf)
@@ -75,28 +75,15 @@ class MiddlewareURLTest(TestCase):
         response = self.middleware.process_request(request)
         self.assertEqual(response, None)
 
-    @override_settings(DEBUG=True)
-    @modify_settings(MIDDLEWARE={
-        'append': ['djstripe.middleware.SubscriptionPaymentMiddleware']})
-    def test_middleware_loads(self):
-        """Check that the middleware can be loaded by django's
-        middleware handlers. This is to check for compatibility across
-        the change to django's middleware class structure. See
-        https://docs.djangoproject.com/en/1.10/topics/http/middleware/#upgrading-pre-django-1-10-style-middleware
-        """
-        self.client.get('/__debug__')
-
 
 class MiddlewareLogicTest(TestCase):
-    urlconf = "tests.urls"
+    urlconf = 'tests.test_urls'
 
     def setUp(self):
         self.settings(ROOT_URLCONF=self.urlconf)
         self.factory = RequestFactory()
         self.user = get_user_model().objects.create_user(username="pydanny", email="pydanny@gmail.com")
-        self.customer = Customer.sync_from_stripe_data(FAKE_CUSTOMER)
-        self.customer.subscriber = self.user
-        self.customer.save()
+        self.customer = Customer.objects.create(subscriber=self.user, stripe_id=FAKE_CUSTOMER["id"], livemode=False)
         self.subscription = Subscription.sync_from_stripe_data(FAKE_SUBSCRIPTION)
         self.middleware = SubscriptionPaymentMiddleware()
 

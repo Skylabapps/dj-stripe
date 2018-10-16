@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.urls.
 
@@ -19,19 +20,31 @@
 
 .. moduleauthor:: @pydanny
 """
+from __future__ import unicode_literals
 from django.conf.urls import url
 
 from . import settings as app_settings
 from . import views
 
 
-app_name = "djstripe"
-
 urlpatterns = [
+
+    # HTML views
+    url(
+        r"^subscribe/$",
+        views.SubscribeView.as_view(),
+        name="subscribe"
+    ),
+    url(
+        r"^cancel/subscription/$",
+        views.CancelSubscriptionView.as_view(),
+        name="cancel_subscription"
+    ),
+
     # Webhook
     url(
         app_settings.DJSTRIPE_WEBHOOK_URL,
-        views.ProcessWebhookView.as_view(),
+        views.WebHook.as_view(),
         name="webhook"
     ),
 ]

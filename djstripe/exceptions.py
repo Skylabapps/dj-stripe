@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.exceptions.
 
@@ -6,6 +7,7 @@
 .. moduleauthor:: @kavdev
 
 """
+from __future__ import unicode_literals
 
 
 class MultipleSubscriptionException(Exception):

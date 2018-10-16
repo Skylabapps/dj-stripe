@@ -6,19 +6,19 @@
 .. moduleauthor:: Lee Skillen (@lskillen)
 
 """
-from unittest.mock import patch
 
-import stripe
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models.base import ModelBase
 from django.test import TestCase
 from django.test.utils import override_settings
+from mock import patch
 
 from djstripe import settings as djstripe_settings
 from djstripe.settings import (
-    get_callback_function, get_stripe_api_version,
-    get_subscriber_model, set_stripe_api_version
-)
+    get_callback_function, get_subscriber_model, get_stripe_api_version,
+    set_stripe_api_version)
+
+import stripe
 
 
 class TestSubscriberModelRetrievalMethod(TestCase):
@@ -96,13 +96,13 @@ class TestSubscriberModelRetrievalMethod(TestCase):
     @override_settings(DJSTRIPE_TEST_CALLBACK=(lambda: "ok"))
     def test_get_callback_function_with_valid_func_callable(self):
         func = get_callback_function("DJSTRIPE_TEST_CALLBACK")
-        self.assertEqual("ok", func())
+        self.assertEquals("ok", func())
 
     @override_settings(DJSTRIPE_TEST_CALLBACK='foo.valid_callback')
     @patch.object(djstripe_settings, 'import_string', return_value=(lambda: "ok"))
     def test_get_callback_function_with_valid_string_callable(self, import_string_mock):
         func = get_callback_function("DJSTRIPE_TEST_CALLBACK")
-        self.assertEqual("ok", func())
+        self.assertEquals("ok", func())
         import_string_mock.assert_called_with('foo.valid_callback')
 
     @override_settings(DJSTRIPE_TEST_CALLBACK='foo.non_existant_callback')
@@ -127,13 +127,13 @@ class TestSubscriberModelRetrievalMethod(TestCase):
 class TestGetStripeApiVersion(TestCase):
 
     def test_with_default(self):
-        self.assertEqual(
+        self.assertEquals(
             djstripe_settings.DEFAULT_STRIPE_API_VERSION,
             get_stripe_api_version())
 
     @override_settings(STRIPE_API_VERSION='2016-03-07')
     def test_with_override(self):
-        self.assertEqual('2016-03-07', get_stripe_api_version())
+        self.assertEquals('2016-03-07', get_stripe_api_version())
 
 
 @override_settings(STRIPE_API_VERSION=None)
@@ -141,18 +141,19 @@ class TestSetStripeApiVersion(TestCase):
 
     def test_with_default(self):
         djstripe_settings.set_stripe_api_version()
-        self.assertEqual(
+        self.assertEquals(
             djstripe_settings.DEFAULT_STRIPE_API_VERSION,
             stripe.api_version)
 
     def test_with_valid_date(self):
         djstripe_settings.set_stripe_api_version(version='2016-03-07')
-        self.assertEqual('2016-03-07', stripe.api_version)
+        self.assertEquals('2016-03-07', stripe.api_version)
 
     def test_with_invalid_date(self):
-        with self.assertRaises(ValueError):
+        err = 'must be a valid date'
+        with self.assertRaisesRegexp(ImproperlyConfigured, err):
             set_stripe_api_version(version='foobar')
 
     def test_with_invalid_date_and_no_validation(self):
         set_stripe_api_version(version='foobar', validate=False)
-        self.assertEqual('foobar', stripe.api_version)
+        self.assertEquals('foobar', stripe.api_version)

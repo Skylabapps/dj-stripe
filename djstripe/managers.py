@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: djstripe.managers.
 
@@ -5,14 +6,26 @@
 
 .. moduleauthor:: @kavdev, @pydanny, @wahuneke
 """
+from __future__ import unicode_literals
+
 import decimal
 
 from django.db import models
 
 
-class StripeModelManager(models.Manager):
-    """Manager used in StripeModel."""
-    pass
+class StripeObjectManager(models.Manager):
+    """Manager used in StripeObject."""
+
+    def exists_by_json(self, data):
+        """
+        Search for a matching stripe object based on a Stripe object received from Stripe in JSON format.
+
+        :param data: Stripe event object parsed from a JSON string into an object
+        :type data: dict
+        :rtype: bool
+        :returns: True if the requested object exists, False otherwise
+        """
+        return self.filter(stripe_id=data["id"]).exists()
 
 
 class SubscriptionManager(models.Manager):
@@ -58,23 +71,24 @@ class TransferManager(models.Manager):
 
     def during(self, year, month):
         """Return Transfers between a certain time range."""
-        return self.filter(created__year=year, created__month=month)
+        return self.filter(date__year=year, date__month=month)
 
     def paid_totals_for(self, year, month):
         """Return paid Transfers during a certain year, month with total amounts annotated."""
-        return self.during(year, month).aggregate(total_amount=models.Sum("amount"))
+        return self.during(year, month).filter(status="paid").aggregate(total_amount=models.Sum("amount"))
 
 
 class ChargeManager(models.Manager):
     """Manager used by models.Charge."""
 
     def during(self, year, month):
-        """Return Charges between a certain time range based on `created`."""
-        return self.filter(created__year=year, created__month=month)
+        """Return Charges between a certain time range based on stripe_timestamp."""
+        return self.filter(stripe_timestamp__year=year, stripe_timestamp__month=month)
 
     def paid_totals_for(self, year, month):
         """Return paid Charges during a certain year, month with total amount, fee and refunded annotated."""
         return self.during(year, month).filter(paid=True).aggregate(
             total_amount=models.Sum("amount"),
+            total_fee=models.Sum("fee"),
             total_refunded=models.Sum("amount_refunded")
         )

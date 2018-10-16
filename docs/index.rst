@@ -1,60 +1,38 @@
+.. complexity documentation master file, created by
+   sphinx-quickstart on Tue Jul  9 22:26:36 2013.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
 Django + Stripe Made Easy
 --------------------------------
 
 * Subscription management
-* Designed for easy implementation of post-registration subscription forms
+* Subscription during registration
 * Single-unit purchases
-* Works with Django >= 2.0
-* Works with Python >= 3.4
+* Works with Django >= 1.10
+* Works with Python 3.5, 3.4, 2.7
+* Works with Bootstrap 3
 * Built-in migrations
 * Dead-Easy installation
-* Leverages the best of the 3rd party Django package ecosystem
-* `djstripe` namespace so you can have more than one payments related app
-* Documented
-* 100% Tested
+* Leverages in the best of the 3rd party Django package ecosystem.
+* `djstripe` namespace so you can have more than one payments-related app.
+* Documented (Making good progress)
+* Tested (100% coverage)
 
 Contents
 ---------
 
 .. toctree::
-   :caption: Getting Started
+   :maxdepth: 2
 
    installation
-
-.. toctree::
-   :caption: Usage
-
-   usage/checking_customer_subscription
-   usage/subscribing_customers.rst
-   usage/one_off_charges.rst
-   usage/restricting_access.rst
-   usage/managing_subscriptions.rst
-   usage/creating_invoices.rst
-   usage/running_reports.rst
-   usage/webhooks.rst
-   usage/manually_syncing_with_stripe.rst
-   usage/cookbook
-
-.. toctree::
-   :caption: Reference
-   :glob:
-
-   reference/context_managers.rst
-   reference/decorators.rst
-   reference/enums.rst
-   reference/managers.rst
-   reference/middleware.rst
-   reference/models.rst
-   reference/settings.rst
-   reference/utils.rst
-
-.. toctree::
-   :caption: Project
-
-   project/contributing.rst
-   project/authors.rst
-   project/history.rst
-   project/support.rst
+   usage
+   models
+   settings
+   cookbook
+   contributing
+   authors
+   history
 
 Constraints
 ------------

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 .. module:: dj-stripe.contrib.rest_framework.urls.
 
@@ -16,14 +17,14 @@ Wire this into the root URLConf this way::
 
 """
 
+from __future__ import unicode_literals
 from django.conf.urls import url
 
 from . import views
 
 
-app_name = "djstripe_rest_framework"
-
 urlpatterns = [
+
     # REST api
     url(
         r"^subscription/$",

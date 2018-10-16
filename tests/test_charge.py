@@ -5,52 +5,28 @@
 .. moduleauthor:: Alex Kavanaugh (@kavdev)
 
 """
+
 from copy import deepcopy
 from decimal import Decimal
-from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
 from django.test.testcases import TestCase
+from mock import patch
 
-from djstripe.enums import ChargeStatus, LegacySourceType
-from djstripe.models import Account, Charge, Dispute, PaymentMethod
+from djstripe.models import Charge, Customer, Account
+from tests import FAKE_TRANSFER, FAKE_CUSTOMER
 
-from . import FAKE_ACCOUNT, FAKE_CHARGE, FAKE_CUSTOMER, FAKE_TRANSFER, default_account
+from . import FAKE_CHARGE, FAKE_ACCOUNT
 
 
 class ChargeTest(TestCase):
 
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="user", email="user@example.com")
-        self.customer = FAKE_CUSTOMER.create_for_user(self.user)
-        self.account = default_account()
+        self.customer = Customer.objects.create(stripe_id=FAKE_CUSTOMER["id"], livemode=False)
+        self.account = Account.objects.create()
 
     def test_str(self):
-        charge = Charge(
-            amount=50, currency="usd", id="ch_test",
-            status=ChargeStatus.failed,
-            captured=False,
-            paid=False,
-        )
-        self.assertEqual(str(charge), "$50.00 USD (Uncaptured)")
-
-        charge.captured = True
-        self.assertEqual(str(charge), "$50.00 USD (Failed)")
-        charge.status = ChargeStatus.succeeded
-
-        charge.dispute = Dispute()
-        self.assertEqual(str(charge), "$50.00 USD (Disputed)")
-
-        charge.dispute = None
-        charge.refunded = True
-        charge.amount_refunded = 50
-        self.assertEqual(str(charge), "$50.00 USD (Refunded)")
-
-        charge.refunded = False
-        self.assertEqual(str(charge), "$50.00 USD (Partially refunded)")
-
-        charge.amount_refunded = 0
-        self.assertEqual(str(charge), "$50.00 USD")
+        charge = Charge(amount=50, paid=True, stripe_id='charge_xxxxxxxxxxxxxx')
+        self.assertEqual("<amount=50, paid=True, stripe_id=charge_xxxxxxxxxxxxxx>", str(charge))
 
     @patch("djstripe.models.Account.get_default_account")
     @patch("stripe.Charge.retrieve")
@@ -85,8 +61,8 @@ class ChargeTest(TestCase):
         self.assertEqual("VideoDoc consultation for ivanp0001 berkp0001", charge.description)
         self.assertEqual(0, charge.amount_refunded)
 
-        self.assertEqual("card_16YKQh2eZvKYlo2Cblc5Feoo", charge.source_id)
-        self.assertEqual(charge.source.type, LegacySourceType.card)
+        self.assertEqual("card_16YKQh2eZvKYlo2Cblc5Feoo", charge.source_stripe_id)
+        self.assertEqual("card", charge.source_type)
 
     @patch("djstripe.models.Account.get_default_account")
     def test_sync_from_stripe_data_max_amount(self, default_account_mock):
@@ -113,9 +89,9 @@ class ChargeTest(TestCase):
         fake_charge_copy.update({"source": {"id": "test_id", "object": "unsupported"}})
 
         charge = Charge.sync_from_stripe_data(fake_charge_copy)
-        self.assertEqual("test_id", charge.source_id)
-        self.assertEqual("unsupported", charge.source.type)
-        self.assertEqual(charge.source, PaymentMethod.objects.get(id="test_id"))
+        self.assertEqual("test_id", charge.source_stripe_id)
+        self.assertEqual("unsupported", charge.source_type)
+        self.assertEqual(None, charge.source)
 
     @patch("djstripe.models.Account.get_default_account")
     def test_sync_from_stripe_data_no_customer(self, default_account_mock):
@@ -148,7 +124,7 @@ class ChargeTest(TestCase):
         self.assertTrue(created)
 
         self.assertNotEqual(None, charge.transfer)
-        self.assertEqual(fake_transfer["id"], charge.transfer.id)
+        self.assertEqual(fake_transfer["id"], charge.transfer.stripe_id)
 
     @patch("stripe.Charge.retrieve")
     @patch("stripe.Account.retrieve")
@@ -164,6 +140,6 @@ class ChargeTest(TestCase):
         self.assertTrue(created)
 
         self.assertEqual(2, Account.objects.count())
-        account = Account.objects.get(id=FAKE_ACCOUNT["id"])
+        account = Account.objects.get(stripe_id=FAKE_ACCOUNT["id"])
 
         self.assertEqual(account, charge.account)
