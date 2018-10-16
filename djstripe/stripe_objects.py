@@ -21,7 +21,9 @@ dj-stripe functionality.
 from copy import deepcopy
 import decimal
 import sys
+import base64
 
+from cryptography.fernet import Fernet
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import dateformat, six, timezone
@@ -37,10 +39,10 @@ from .fields import (
     StripeBooleanField, StripeCharField, StripeCurrencyField, StripeDateTimeField,
     StripeFieldMixin, StripeIdField, StripeIntegerField, StripeJSONField,
     StripeNullBooleanField, StripePercentField, StripePositiveIntegerField,
-    StripeTextField
+    StripeTextField, StripeEmailField
 )
 from .managers import StripeObjectManager
-
+import stripe
 
 # Override the default API version used by the Stripe library.
 djstripe_settings.set_stripe_api_version()
@@ -118,7 +120,7 @@ class StripeObject(models.Model):
             # Livemode is false, use the test secret key
             return djstripe_settings.TEST_API_KEY or djstripe_settings.STRIPE_SECRET_KEY
 
-    def api_retrieve(self, api_key=None):
+    def api_retrieve(self, api_key=None, stripe_account = None):
         """
         Call the stripe API's retrieve operation for this model.
 
@@ -127,7 +129,7 @@ class StripeObject(models.Model):
         """
         api_key = api_key or self.default_api_key
 
-        return self.stripe_class.retrieve(id=self.stripe_id, api_key=api_key, expand=self.expand_fields)
+        return self.stripe_class.retrieve(id=self.stripe_id, api_key=api_key, expand=self.expand_fields, stripe_account = stripe_account)
 
     @classmethod
     def api_list(cls, api_key=djstripe_settings.STRIPE_SECRET_KEY, **kwargs):
@@ -155,7 +157,7 @@ class StripeObject(models.Model):
 
         return cls.stripe_class.create(api_key=api_key, **kwargs)
 
-    def _api_delete(self, api_key=None, **kwargs):
+    def _api_delete(self, api_key=None, account = None, **kwargs):
         """
         Call the stripe API's delete operation for this model
 
@@ -164,7 +166,7 @@ class StripeObject(models.Model):
         """
         api_key = api_key or self.default_api_key
 
-        return self.api_retrieve(api_key=api_key).delete(**kwargs)
+        return self.api_retrieve(api_key=api_key, stripe_account = account).delete(**kwargs)
 
     def str_parts(self):
         """
@@ -662,8 +664,9 @@ Fields not implemented:
     )
     shipping = StripeJSONField(null=True, help_text="Shipping information associated with the customer.")
 
-    def subscribe(self, plan, application_fee_percent=None, coupon=None, quantity=None, metadata=None,
-                  tax_percent=None, trial_end=None):
+    def subscribe(self, plan, account=None, application_fee_percent=None,
+                  coupon=None, quantity=None, metadata=None, tax_percent=None,
+                  trial_end=None, api_key=None):
         """
         Subscribes this customer to a plan.
 
@@ -707,22 +710,28 @@ Fields not implemented:
         .. if you're using ``StripeCustomer.subscribe()`` instead of ``Customer.subscribe()``, ``plan`` \
         can only be a string
         """
-
+        api_key = api_key or self.default_api_key
+        token = stripe.Token.create(customer=self.stripe_id, stripe_account=account,api_key=api_key)
+        # FIXME-STRIPE store customer copy info
+        copied_customer = stripe.Customer.create(source=token.id, stripe_account=account,api_key=api_key)
         stripe_subscription = StripeSubscription._api_create(
             plan=plan,
-            customer=self.stripe_id,
+            stripe_account=account,
+            customer=copied_customer.id,
             application_fee_percent=application_fee_percent,
             coupon=coupon,
             quantity=quantity,
             metadata=metadata,
             tax_percent=tax_percent,
             trial_end=trial_end,
+            api_key=api_key,
         )
+        stripe_subscription['customer'] = self.stripe_id
 
         return stripe_subscription
 
-    def charge(self, amount, currency, application_fee=None, capture=None, description=None, destination=None,
-               metadata=None, shipping=None, source=None, statement_descriptor=None):
+    def charge(self, amount, currency, application_fee=None, capture=None, description=None, destination=None, account=None,
+               metadata=None, shipping=None, source=None, statement_descriptor=None, api_key=None):
         """
         Creates a charge for this customer.
 
@@ -765,6 +774,8 @@ Fields not implemented:
         if source and isinstance(source, StripeSource):
             source = source.stripe_id
 
+        api_key = api_key or self.default_api_key
+
         stripe_charge = StripeCharge._api_create(
             amount=int(amount * 100),  # Convert dollars into cents
             currency=currency,
@@ -777,6 +788,7 @@ Fields not implemented:
             customer=self.stripe_id,
             source=source,
             statement_descriptor=statement_descriptor,
+            api_key=api_key
         )
 
         return stripe_charge
@@ -1083,13 +1095,84 @@ Fields not implemented:
 # ============================================================================ #
 
 class StripeAccount(StripeObject):
-
+    """
+This is an object representing your Stripe account. You can retrieve it to see
+properties on the account like its current e-mail address or if the account is
+enabled yet to make live charges. (Source: https://stripe.com/docs/api#account)
+    """
     class Meta:
         abstract = True
 
     stripe_class = stripe.Account
 
-    # Account -- add_card(external_account);
+    country = StripeCharField(
+        max_length=255,
+        help_text="The country of the account."
+    )
+    # default_currency =
+    currency = StripeCharField(
+        max_length=3,
+        help_text="Three-letter ISO currency code."
+    )
+    display_name = StripeCharField(
+        max_length=255,
+        blank=True,
+        help_text="The display name for this account. This is used on the "
+                  "Stripe dashboard to help you differentiate between accounts."
+    )
+    email = StripeEmailField(
+        max_length=255,
+        blank=True,
+        help_text="The primary user’s email address."
+    )
+    managed = StripeBooleanField(
+        default=False,
+        help_text="Whether or not the account is managed by your platform. ."
+    )
+    legal_entity = StripeJSONField(
+        blank=True,
+        null=True,
+        help_text="Information regarding the owner of this account, including "
+                  "verification status."
+    )
+    external_accounts = StripeJSONField(
+        blank=True,
+        null=True,
+        help_text="External accounts (bank accounts and/or cards) currently "
+                  "attached to this account."
+    )
+    public_key = StripeCharField(max_length=255, blank=True)
+    _private_key = StripeCharField(max_length=255, blank=True)
+
+    @staticmethod
+    def _get_encryption_key():
+        if hasattr(djstripe_settings, 'STRIPE_ENCRYPTION_KEY'):
+            key = djstripe_settings.STRIPE_ENCRYPTION_KEY
+        else:
+            key = djstripe_settings.STRIPE_SECRET_KEY
+        return base64.b64encode(bytes(key, encoding="UTF-8"))
+
+    @property
+    def private_key(self):
+        key = self._get_encryption_key()
+        cipher_suite = Fernet(key)
+        return cipher_suite.decrypt(bytes(self._private_key, encoding="UTF-8"))
+
+    def add_private_key(self, value):
+        key = self._get_encryption_key()
+        encoding = {"encoding": "UTF-8"}
+        cipher_suite = Fernet(key)
+        self._private_key = str(
+            cipher_suite.encrypt(bytes(value, **encoding)), **encoding)
+
+    def add_card(self, external_account):
+        account = self.stripe_class.retrieve(self.stripe_id)
+        account.external_accounts.create(external_account=external_account)
+
+        stripe_account = self.api_retrieve()
+        self.external_accounts = stripe_account['external_accounts']
+        self.legal_entity = stripe_account['legal_entity']
+        self.save()
 
     @classmethod
     def get_connected_account_from_token(cls, access_token):
@@ -1099,9 +1182,29 @@ class StripeAccount(StripeObject):
 
     @classmethod
     def get_default_account(cls):
-        account_data = cls.stripe_class.retrieve(api_key=djstripe_settings.STRIPE_SECRET_KEY)
+        account_data = cls.stripe_class.retrieve(
+            api_key=djstripe_settings.STRIPE_SECRET_KEY)
 
         return cls._get_or_create_from_stripe_object(account_data)[0]
+
+    @classmethod
+    def _manipulate_stripe_object_hook(cls, data):
+        if "currency" not in data:
+            data["currency"] = data["default_currency"]
+        if "legal_entity" not in data:
+            data["legal_entity"] = None
+        if "external_accounts" not in data:
+            data["external_accounts"] = None
+        if not data["display_name"]:
+            data["display_name"] = "default"
+        if "public_key" not in data:
+            data["public_key"] = djstripe_settings.STRIPE_PUBLIC_KEY
+
+        private_key = data["private_key"] if "private_key" in data else djstripe_settings.STRIPE_SECRET_KEY
+        cls.add_private_key(cls, private_key)
+        data["_private_key"] = cls._private_key
+
+        return data
 
 
 # ============================================================================ #
@@ -1673,6 +1776,8 @@ Fields not implemented:
 .. attention:: Stripe API_VERSION: model fields and methods audited to 2016-03-07 - @kavdev
     """
 
+    stripe_id = StripeIdField(unique=False, stripe_name='id')
+
     class Meta:
         abstract = True
 
@@ -1707,6 +1812,7 @@ Fields not implemented:
         help_text="Number of trial period days granted when subscribing a customer to this plan. "
         "Null if the plan has no trial period."
     )
+
 
     @property
     def amount_in_cents(self):
@@ -1827,6 +1933,20 @@ Fields not implemented:
 
         return target_cls._get_or_create_from_stripe_object(data["plan"])[0]
 
+    @classmethod
+    def _stripe_object_to_account(cls, target_cls, data):
+        """
+        Search the given manager for the Plan matching this StripeCharge object's ``plan`` field.
+        Note that the plan field is already expanded in each request and is required.
+
+        :param target_cls: The target class
+        :type target_cls: StripePlan
+        :param data: stripe object
+        :type data: dict
+
+        """
+        return target_cls._get_or_create_from_stripe_object(data["account"])[0]
+
     def update(self, plan=None, application_fee_percent=None, coupon=None, prorate=None, proration_date=None,
                metadata=None, quantity=None, tax_percent=None, trial_end=None):
         """
@@ -1887,7 +2007,7 @@ Fields not implemented:
 
         return StripeSubscription.update(self, prorate=False, trial_end=period_end)
 
-    def cancel(self, at_period_end=None):
+    def cancel(self, at_period_end=None, account = None):
         """
         Cancels this subscription. If you set the at_period_end parameter to true, the subscription will remain active
         until the end of the period, at which point it will be canceled and not renewed. By default, the subscription
@@ -1913,7 +2033,8 @@ Fields not implemented:
         """
 
         try:
-            stripe_subscription = self._api_delete(at_period_end=at_period_end)
+            account_id = account.stripe_id if account else None
+            stripe_subscription = self._api_delete(at_period_end=at_period_end, account = account_id )
         except InvalidRequestError as exc:
             if "No such subscription:" in str(exc):
                 # cancel() works by deleting the subscription. The object still
@@ -1922,7 +2043,7 @@ Fields not implemented:
                 # that api_retrieve() call will fail with "No such subscription".
                 # However, this may also happen if the subscription legitimately
                 # does not exist, in which case the following line will re-raise.
-                stripe_subscription = self.api_retrieve()
+                stripe_subscription = self.api_retrieve(stripe_account = account_id)
             else:
                 six.reraise(*sys.exc_info())
 
