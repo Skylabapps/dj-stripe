@@ -341,7 +341,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='invoice',
             name='amount_due',
-            field=djstripe.fields.StripeCurrencyField(decimal_places=2, default='-', help_text="Final amount due at this time for this invoice. If the invoice's total is smaller than the minimum charge amount, for example, or if there is account credit that can be applied to the invoice, the amount_due may be 0. If there is a positive starting_balance for the invoice (the customer owes money), the amount_due will also take that into account. The charge that gets generated for the invoice will be for the amount specified in amount_due.", max_digits=8),
+            field=djstripe.fields.StripeCurrencyField(decimal_places=2, default=0, help_text="Final amount due at this time for this invoice. If the invoice's total is smaller than the minimum charge amount, for example, or if there is account credit that can be applied to the invoice, the amount_due may be 0. If there is a positive starting_balance for the invoice (the customer owes money), the amount_due will also take that into account. The charge that gets generated for the invoice will be for the amount specified in amount_due.", max_digits=8),
             preserve_default=False,
         ),
         migrations.AddField(
@@ -352,7 +352,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='invoice',
             name='attempt_count',
-            field=djstripe.fields.StripeIntegerField(default='-', help_text='Number of payment attempts made for this invoice, from the perspective of the payment retry schedule. Any payment attempt counts as the first attempt, and subsequently only automatic retries increment the attempt count. In other words, manual payment attempts after the first attempt do not affect the retry schedule.'),
+            field=djstripe.fields.StripeIntegerField(default=0, help_text='Number of payment attempts made for this invoice, from the perspective of the payment retry schedule. Any payment attempt counts as the first attempt, and subsequently only automatic retries increment the attempt count. In other words, manual payment attempts after the first attempt do not affect the retry schedule.'),
             preserve_default=False,
         ),
         migrations.AddField(
@@ -394,7 +394,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='invoice',
             name='starting_balance',
-            field=djstripe.fields.StripeIntegerField(default='-', help_text='Starting customer balance before attempting to pay invoice. If the invoice has not been attempted yet, this will be the current customer balance.'),
+            field=djstripe.fields.StripeIntegerField(default=0, help_text='Starting customer balance before attempting to pay invoice. If the invoice has not been attempted yet, this will be the current customer balance.'),
             preserve_default=False,
         ),
         migrations.AddField(
@@ -425,13 +425,13 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='invoiceitem',
             name='customer',
-            field=models.ForeignKey(default='-', help_text='The customer associated with this invoiceitem.', on_delete=django.db.models.deletion.CASCADE, related_name='invoiceitems', to='djstripe.Customer'),
+            field=models.ForeignKey(null=True, help_text='The customer associated with this invoiceitem.', on_delete=django.db.models.deletion.CASCADE, related_name='invoiceitems', to='djstripe.Customer'),
             preserve_default=False,
         ),
         migrations.AddField(
             model_name='invoiceitem',
             name='date',
-            field=djstripe.fields.StripeDateTimeField(default='-', help_text='The date on the invoiceitem.'),
+            field=djstripe.fields.StripeDateTimeField(null=True, help_text='The date on the invoiceitem.'),
             preserve_default=False,
         ),
         migrations.AddField(
