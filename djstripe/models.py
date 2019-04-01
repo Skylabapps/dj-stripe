@@ -898,7 +898,7 @@ class InvoiceItem(StripeInvoiceItem):
 class Plan(StripePlan):
     __doc__ = getattr(StripePlan, "__doc__")
 
-    account = ForeignKey("Account", related_name="plans", null=True)
+    account = ForeignKey("Account", on_delete=models.CASCADE, related_name="plans", null=True)
 
     class Meta(object):
         ordering = ["amount"]
@@ -970,7 +970,8 @@ class Subscription(StripeSubscription):
         "Account",
         related_name="subscriptions",
         help_text="The account associated with this subscription.",
-        null=True
+        null=True,
+        on_delete=models.CASCADE
     )
     customer = ForeignKey(
         "Customer", on_delete=models.CASCADE,
