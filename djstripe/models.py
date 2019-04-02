@@ -845,13 +845,18 @@ class InvoiceItem(StripeInvoiceItem):
 
     # account = ForeignKey(Account, related_name="invoiceitems")
     customer = ForeignKey(
-        Customer, on_delete=models.CASCADE,
+        Customer,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="invoiceitems",
         help_text="The customer associated with this invoiceitem."
     )
     invoice = ForeignKey(
-        Invoice, on_delete=models.CASCADE,
+        Invoice,
+        on_delete=models.CASCADE,
         null=True,
+        blank=True,
         related_name="invoiceitems",
         help_text="The invoice to which this invoiceitem is attached."
     )
