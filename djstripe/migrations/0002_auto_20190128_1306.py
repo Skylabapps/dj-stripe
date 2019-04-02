@@ -431,7 +431,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='invoiceitem',
             name='date',
-            field=djstripe.fields.StripeDateTimeField(null=True, help_text='The date on the invoiceitem.'),
+            field=djstripe.fields.StripeDateTimeField(null=True, blank=True, help_text='The date on the invoiceitem.'),
             preserve_default=False,
         ),
         migrations.AddField(
