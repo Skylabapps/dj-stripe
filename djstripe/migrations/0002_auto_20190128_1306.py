@@ -425,7 +425,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='invoiceitem',
             name='customer',
-            field=models.ForeignKey(null=True, help_text='The customer associated with this invoiceitem.', on_delete=django.db.models.deletion.CASCADE, related_name='invoiceitems', to='djstripe.Customer'),
+            field=models.ForeignKey(null=True,  blank=True, help_text='The customer associated with this invoiceitem.', on_delete=django.db.models.deletion.CASCADE, related_name='invoiceitems', to='djstripe.Customer'),
             preserve_default=False,
         ),
         migrations.AddField(
@@ -778,7 +778,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='invoiceitem',
             name='invoice',
-            field=models.ForeignKey(help_text='The invoice to which this invoiceitem is attached.', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='invoiceitems', to='djstripe.Invoice'),
+            field=models.ForeignKey(help_text='The invoice to which this invoiceitem is attached.', null=True, blank=True, on_delete=django.db.models.deletion.CASCADE, related_name='invoiceitems', to='djstripe.Invoice'),
         ),
         migrations.AlterField(
             model_name='invoiceitem',
