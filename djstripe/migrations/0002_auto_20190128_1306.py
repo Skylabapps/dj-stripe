@@ -8,6 +8,8 @@ from django.db import migrations, models
 import django.db.models.deletion
 import djstripe.fields
 import uuid
+import datetime
+from django.utils.timezone import utc
 
 
 class Migration(migrations.Migration):
@@ -431,7 +433,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='invoiceitem',
             name='date',
-            field=djstripe.fields.StripeDateTimeField(null=True, blank=True, help_text='The date on the invoiceitem.'),
+            field=djstripe.fields.StripeDateTimeField(default=datetime.datetime(2100, 1, 1, 0, 0,tzinfo=utc), null=True, blank=True, help_text='The date on the invoiceitem.'),
             preserve_default=False,
         ),
         migrations.AddField(

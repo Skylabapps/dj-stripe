@@ -1715,7 +1715,7 @@ Fields not implemented:
 
     amount = StripeCurrencyField(help_text="Amount invoiced.")
     currency = StripeCharField(max_length=3, help_text="Three-letter ISO currency code.")
-    date = StripeDateTimeField(help_text="The date on the invoiceitem.")
+    date = StripeDateTimeField(null=True, blank=True, help_text="The date on the invoiceitem.")
     discountable = StripeBooleanField(
         default=False,
         help_text="If True, discounts will apply to this invoice item. Always False for prorations."
